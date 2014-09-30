@@ -1,0 +1,6 @@
+[submodule "thermistor/Adafruit_GFX"]
+	path = thermistor/Adafruit_GFX
+	url = https://github.com/adafruit/Adafruit-GFX-Library.git
+[submodule "thermistor/Adafruit_SSD1306"]
+	path = thermistor/Adafruit_SSD1306
+	url = git@github.com:jw26/Adafruit_SSD1306.git
