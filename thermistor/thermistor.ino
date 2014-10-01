@@ -1,8 +1,11 @@
-
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+
+#define BLUE 3
+#define GREEN 5
+#define RED 6
 
 // If using software SPI (the default case):
 #define OLED_MOSI   9
@@ -48,58 +51,83 @@ double resistance_to_celcius(double res) {
   return temperature;
 }
 
-// which analog pin to connect
-#define THERMISTORPIN A0
-// how many samples to take and average, more takes longer
-// but is more 'smooth'
-#define NUMSAMPLES 5
-
-int samples[NUMSAMPLES];
-
 void setup(void) {
   Serial.begin(9600);
   // connect AREF to 3.3V and use that as VCC, less noisy!
   analogReference(EXTERNAL);
 
+  pinMode(BLUE,OUTPUT);
+  pinMode(GREEN,OUTPUT);
+  pinMode(RED,OUTPUT);
+
   display.begin(SSD1306_SWITCHCAPVCC);
   display.clearDisplay();
 }
 
-void loop(void) {
+double read_therm(uint8_t pin, int numsamples) {
   uint8_t i;
-  float average;
+  double average;
+  int samples[numsamples];
+
+  analogRead(pin);
+  delay(100);
 
   // take N samples in a row, with a slight delay
-  for (i=0; i< NUMSAMPLES; i++) {
-    samples[i] = analogRead(THERMISTORPIN);
+  for (i=0; i< numsamples; i++) {
+    samples[i] = analogRead(pin);
     delay(10);
   }
 
   // average all the samples out
   average = 0;
-  for (i=0; i< NUMSAMPLES; i++) {
+  for (i=0; i< numsamples; i++) {
     average += samples[i];
   }
-  average /= NUMSAMPLES;
-
-  Serial.print("Average analog reading ");
-  Serial.println(average);
-  // convert the value to resistance
+  average /= numsamples;
   average = 1023 / average - 1;
   average = RREF / average;
 
-  Serial.print("Thermistor resistance ");
-  Serial.println(average);
+  return average;
+}
 
-  Serial.print("temp : ");
-  Serial.print(resistance_to_celcius(double(average)));
-  Serial.println(" *C");
+void report_hot() {
+  digitalWrite(BLUE,LOW);
+  digitalWrite(GREEN,LOW);
+  digitalWrite(RED,HIGH);
+}
+void report_warm() {
+  digitalWrite(BLUE,LOW);
+  digitalWrite(GREEN,HIGH);
+  digitalWrite(RED,HIGH);
+}
+void report_ok() {
+  digitalWrite(BLUE,LOW);
+  digitalWrite(GREEN,HIGH);
+  digitalWrite(RED,LOW);
+}
+void report_chilly() {
+  digitalWrite(BLUE,HIGH);
+  digitalWrite(GREEN,HIGH);
+  digitalWrite(RED,LOW);
+}
+void report_cold() {
+  digitalWrite(BLUE,HIGH);
+  digitalWrite(GREEN,LOW);
+  digitalWrite(RED,LOW);
+}
+
+
+void loop(void) {
+
+  report_cold();delay(1000);report_chilly();delay(1000);report_ok();delay(1000);report_warm();delay(1000);report_hot();
 
   display.clearDisplay();
-  display.setTextSize(3);
+  display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0,0);
-  display.print(resistance_to_celcius(double(average)));display.println(" C");
+  display.print(resistance_to_celcius(read_therm(A0,5)));display.println(" C");
+  display.print(resistance_to_celcius(read_therm(A1,5)));display.println(" C");
+  display.print(resistance_to_celcius(read_therm(A2,5)));display.println(" C");
   display.display();
 
   delay(1000);
