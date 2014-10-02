@@ -3,9 +3,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#define BLUE 3
-#define GREEN 5
-#define RED 6
+#define BLUE 4
+#define GREEN 7
+#define RED 8
 
 // If using software SPI (the default case):
 #define OLED_MOSI   9
@@ -60,7 +60,7 @@ void setup(void) {
   pinMode(GREEN,OUTPUT);
   pinMode(RED,OUTPUT);
 
-  attachInterrupt(0,button_press,CHANGE);
+  attachInterrupt(0,button_press,FALLING);
 
   display.begin(SSD1306_SWITCHCAPVCC);
   display.clearDisplay();
@@ -118,35 +118,60 @@ void report_cold() {
   digitalWrite(RED,LOW);
 }
 
-volatile int press = 0;
+volatile uint8_t press = 0;
+unsigned int state = 0;
+unsigned long ticks = 0;
 
 void button_press() {
   press += 1;
 }
 
 void loop(void) {
+  unsigned long m = millis();
 
   //report_cold();delay(1000);report_chilly();delay(1000);report_ok();delay(1000);report_warm();delay(1000);report_hot();
 
-  if( press > 0 ) {
-    report_cold();
-  display.clearDisplay();
-  display.setTextSize(4);
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
-  display.print(press);
-  display.display();
-    press = 0;
-delay(1000);
-  } else {
-  display.clearDisplay();
-  display.setTextSize(4);
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
-  display.print(press);
-  display.display();
-    report_ok();
+  if (state > 0 && m-ticks > long(10000)) {
+    state = 0; ticks = 0;
+    display.ssd1306_command(SSD1306_DISPLAYOFF);
   }
+
+  if( press > 0 ) {
+    ticks = m;
+    report_cold();
+    state = (state+1)%5;
+    switch (state) {
+      case 0:
+        report_cold();break;
+      case 1:
+        report_chilly();break;
+      case 2:
+        report_ok();break;
+      case 3:
+        report_warm();break;
+      case 4:
+        report_hot();break;
+      default:
+        report_hot();break;
+    }
+    if (state != 0) {
+      display.ssd1306_command(SSD1306_DISPLAYON);
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setTextColor(WHITE);
+      display.setCursor(0,0);
+      display.print(int(state));
+      display.setCursor(0,20);
+      display.display();
+    } else {
+      display.ssd1306_command(SSD1306_DISPLAYOFF);
+      ticks = 0;
+    }
+    press = 0;
+  } else {
+    //report_ok();
+  }
+
 /*
   display.clearDisplay();
   display.setTextSize(1);
