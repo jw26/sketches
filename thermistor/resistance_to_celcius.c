@@ -1,3 +1,4 @@
+#include <Arduino.h>
 
 // borrowed from
 // https://github.com/fornellas/sketchbook/blob/master/libraries/Thermistor/Thermistor.cpp
@@ -30,3 +31,30 @@ double resistance_to_celcius(double res) {
 
   return temperature;
 }
+
+double read_therm(uint8_t pin, int numsamples) {
+  uint8_t i;
+  double average;
+  int samples[numsamples];
+
+  analogRead(pin);
+  delay(100);
+
+  // take N samples in a row, with a slight delay
+  for (i=0; i< numsamples; i++) {
+    samples[i] = analogRead(pin);
+    delay(10);
+  }
+
+  // average all the samples out
+  average = 0;
+  for (i=0; i< numsamples; i++) {
+    average += samples[i];
+  }
+  average /= numsamples;
+  average = 1023 / average - 1;
+  average = RREF / average;
+
+  return average;
+}
+
