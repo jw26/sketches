@@ -60,6 +60,8 @@ void setup(void) {
   pinMode(GREEN,OUTPUT);
   pinMode(RED,OUTPUT);
 
+  attachInterrupt(0,button_press,CHANGE);
+
   display.begin(SSD1306_SWITCHCAPVCC);
   display.clearDisplay();
 }
@@ -116,11 +118,36 @@ void report_cold() {
   digitalWrite(RED,LOW);
 }
 
+volatile int press = 0;
+
+void button_press() {
+  press += 1;
+}
 
 void loop(void) {
 
-  report_cold();delay(1000);report_chilly();delay(1000);report_ok();delay(1000);report_warm();delay(1000);report_hot();
+  //report_cold();delay(1000);report_chilly();delay(1000);report_ok();delay(1000);report_warm();delay(1000);report_hot();
 
+  if( press > 0 ) {
+    report_cold();
+  display.clearDisplay();
+  display.setTextSize(4);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  display.print(press);
+  display.display();
+    press = 0;
+delay(1000);
+  } else {
+  display.clearDisplay();
+  display.setTextSize(4);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  display.print(press);
+  display.display();
+    report_ok();
+  }
+/*
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
@@ -130,5 +157,5 @@ void loop(void) {
   display.print(resistance_to_celcius(read_therm(A2,5)));display.println(" C");
   display.display();
 
-  delay(1000);
+  delay(1000);*/
 }
