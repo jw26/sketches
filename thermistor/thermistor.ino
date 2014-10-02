@@ -3,6 +3,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
+#include "heats.h"
+#include "resistance_to_celcius.c"
+
 #define BLUE 4
 #define GREEN 7
 #define RED 8
@@ -19,37 +22,6 @@ Adafruit_SSD1306 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
 #error("Height incorrect, please fix Adafruit_SSD1306.h!");
 #endif
 
-// borrowed from
-// https://github.com/fornellas/sketchbook/blob/master/libraries/Thermistor/Thermistor.cpp
-// Constants for Vishay part NTCLE100E3103JB0:
-// http://www.sparkfun.com/products/250
-// If you have a different part, please refer to the datasheet:
-// http://www.sparkfun.com/datasheets/Sensors/Thermistor23816403-1.pdf
-// and adjust them as needed.
-#define RREF 10000.0
-#define TA1 0.003354016
-#define TB1 0.0002569850
-#define TC1 0.000002620131
-#define TD1 0.00000006383091
-
-double resistance_to_celcius(double res) {
-  double RT;
-  double temperature;
-  double logRtRref;
-  double logRtRref2;
-
-  logRtRref=log(res/RREF);
-  logRtRref2=logRtRref * logRtRref;
-  temperature=1.0 /
-    (
-      TA1 +
-      TB1 * logRtRref +
-      TC1 * logRtRref2 +
-      TD1 * logRtRref2 * logRtRref
-    ) - 273.15;
-
-  return temperature;
-}
 
 void setup(void) {
   Serial.begin(9600);
@@ -64,6 +36,11 @@ void setup(void) {
 
   display.begin(SSD1306_SWITCHCAPVCC);
   display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  display.print("oh hai");
+  display.display();
 }
 
 double read_therm(uint8_t pin, int numsamples) {
@@ -92,79 +69,111 @@ double read_therm(uint8_t pin, int numsamples) {
   return average;
 }
 
-void report_hot() {
+void led_off() {
   digitalWrite(BLUE,LOW);
   digitalWrite(GREEN,LOW);
-  digitalWrite(RED,HIGH);
-}
-void report_warm() {
-  digitalWrite(BLUE,LOW);
-  digitalWrite(GREEN,HIGH);
-  digitalWrite(RED,HIGH);
-}
-void report_ok() {
-  digitalWrite(BLUE,LOW);
-  digitalWrite(GREEN,HIGH);
   digitalWrite(RED,LOW);
 }
-void report_chilly() {
-  digitalWrite(BLUE,HIGH);
-  digitalWrite(GREEN,HIGH);
-  digitalWrite(RED,LOW);
+void led_on(How_hot hot) {
+  switch (hot) {
+    case COLD:
+      digitalWrite(BLUE,HIGH);
+      digitalWrite(GREEN,LOW);
+      digitalWrite(RED,LOW);
+      break;
+    case CHILLY:
+      digitalWrite(BLUE,HIGH);
+      digitalWrite(GREEN,HIGH);
+      digitalWrite(RED,LOW);
+      break;
+    case HOT:
+      digitalWrite(BLUE,LOW);
+      digitalWrite(GREEN,LOW);
+      digitalWrite(RED,HIGH);
+      break;
+    case OK:
+      digitalWrite(BLUE,LOW);
+      digitalWrite(GREEN,HIGH);
+      digitalWrite(RED,LOW);
+      break;
+    case WARM:
+      digitalWrite(BLUE,LOW);
+      digitalWrite(GREEN,HIGH);
+      digitalWrite(RED,HIGH);
+      break;
+    default:
+      digitalWrite(BLUE,LOW);
+      digitalWrite(GREEN,LOW);
+      digitalWrite(RED,LOW);
+  }
 }
-void report_cold() {
-  digitalWrite(BLUE,HIGH);
-  digitalWrite(GREEN,LOW);
-  digitalWrite(RED,LOW);
-}
+
 
 volatile uint8_t press = 0;
 unsigned int state = 0;
 unsigned long ticks = 0;
 
+unsigned long sensor_ticks = 0;
+#define TEN_SECONDS 10000
+#define THIRTY_SECONDS 30000
+
+double temps[3] = {NULL,NULL,NULL};
+
 void button_press() {
   press += 1;
+}
+
+How_hot check_temp(double temp) {
+  How_hot heat = OK;
+  if (temp < 19.00) {
+    heat = CHILLY;
+    if (temp < 18.00) {
+      heat = COLD;
+    }
+  } else if (temp > 21.00) {
+    heat = WARM;
+    if (temp > 24.00) {
+      heat = HOT;
+    }
+  }
+  return heat;
 }
 
 void loop(void) {
   unsigned long m = millis();
 
-  //report_cold();delay(1000);report_chilly();delay(1000);report_ok();delay(1000);report_warm();delay(1000);report_hot();
+  if (temps[0] == NULL || m-sensor_ticks > long(TEN_SECONDS)) {
+    temps[0] = resistance_to_celcius(read_therm(A0,5));
+    temps[1] = resistance_to_celcius(read_therm(A1,5));
+    temps[2] = resistance_to_celcius(read_therm(A2,5));
 
-  if (state > 0 && m-ticks > long(10000)) {
+    How_hot hotness = check_temp(temps[0]);
+  }
+
+  if (state > 0 && m-ticks > long(TEN_SECONDS)) {
     state = 0; ticks = 0;
+    led_off();
     display.ssd1306_command(SSD1306_DISPLAYOFF);
   }
 
   if( press > 0 ) {
     ticks = m;
-    report_cold();
-    state = (state+1)%5;
-    switch (state) {
-      case 0:
-        report_cold();break;
-      case 1:
-        report_chilly();break;
-      case 2:
-        report_ok();break;
-      case 3:
-        report_warm();break;
-      case 4:
-        report_hot();break;
-      default:
-        report_hot();break;
-    }
+    state = (state+1)%4;
     if (state != 0) {
+      double t = temps[state-1];
+      How_hot hotness = check_temp(t);
+      led_on(hotness);
       display.ssd1306_command(SSD1306_DISPLAYON);
       display.clearDisplay();
       display.setTextSize(1);
       display.setTextColor(WHITE);
       display.setCursor(0,0);
-      display.print(int(state));
+      display.print(t);display.print("* C");
       display.setCursor(0,20);
       display.display();
     } else {
       display.ssd1306_command(SSD1306_DISPLAYOFF);
+      led_off();
       ticks = 0;
     }
     press = 0;
@@ -172,15 +181,4 @@ void loop(void) {
     //report_ok();
   }
 
-/*
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
-  display.print(resistance_to_celcius(read_therm(A0,5)));display.println(" C");
-  display.print(resistance_to_celcius(read_therm(A1,5)));display.println(" C");
-  display.print(resistance_to_celcius(read_therm(A2,5)));display.println(" C");
-  display.display();
-
-  delay(1000);*/
 }
