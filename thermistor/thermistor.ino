@@ -2,9 +2,10 @@
 #include "heats.h"
 #include "resistance_to_celcius.c"
 
+#define OFF_STATE 3
 #define NUMSENSORS 3
-sensor sensors[3];
-boolean alarms[] = {false,false,false};
+sensor sensors[NUMSENSORS];
+uint8_t inputs[] = {A0,A1,A2,A3};
 
 void setup(void) {
   Serial.begin(9600);
@@ -19,10 +20,10 @@ void setup(void) {
   sensors[0].name = "Mr Snake        ";
   sensors[1].name = "Mr and Mrs Gecko";
   sensors[2].name = "Phyllis";
+  sensors[3].name = "Room";
 }
 
 volatile uint8_t press = 0;
-#define OFF_STATE 3
 unsigned int state = OFF_STATE;
 unsigned long button_ticks = 0;
 unsigned long display_ticks = 0;
@@ -33,7 +34,12 @@ unsigned long sensor_ticks = 0;
 #define THIRTY_SECONDS 30000
 
 void button_press() {
-  press += 1;
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  if (interrupt_time - last_interrupt_time > 200) {
+    press += 1;
+  }
+  last_interrupt_time = interrupt_time;
 }
 
 void loop (void) {
@@ -41,16 +47,10 @@ void loop (void) {
 
   // read temps update sensors every 10 seconds
   if (m-sensor_ticks > long(TEN_SECONDS)) {
-    sensors[0].t = resistance_to_celcius(read_therm(A0,5));
-    sensors[1].t = resistance_to_celcius(read_therm(A1,5));
-    sensors[2].t = resistance_to_celcius(read_therm(A2,5));
-
     for (int i=0; i<NUMSENSORS; i++) {
+      sensors[i].t = resistance_to_celcius(read_therm(inputs[i],5));
       sensors[i].h = check_temp(sensors[i].t);
-    }
-
-    for (int i=0; i<NUMSENSORS; i++) {
-      alarms[i] = is_alarm(&sensors[i]);
+      sensors[i].alarm = is_alarm(&sensors[i]);
     }
 
     sensor_ticks = m;
@@ -63,14 +63,21 @@ void loop (void) {
     button_ticks = 0;
   }
 
-  // check for button presses every 25ms
-  if(m-button_ticks > long(25) && press > 0 ) {
-    button_ticks = m;
-    state = (state+1)%(OFF_STATE);//+1);
-   // if (state == OFF_STATE) {
-     // button_ticks = 0;
-    //}
+  // if off, but alarms, shift to the busted one
+  if (state == OFF_STATE) {
+    for (int i=0; i<NUMSENSORS; i++) {
+      if (sensors[i].alarm == 1) {
+        state = i;
+        break;
+      }
+    }
+  }
+
+  // check for button presses every 20ms
+  if(m-button_ticks > long(20) && press > 0 ) {
+    state = (state+1)%(NUMSENSORS+1);
     press = 0;
+    button_ticks = m;
   }
 
   // update display 10 times a second
