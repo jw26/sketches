@@ -2,13 +2,13 @@
 #include "heats.h"
 #include "resistance_to_celcius.c"
 
-#define OFF_STATE 3
-#define NUMSENSORS 3
-sensor sensors[NUMSENSORS];
-uint8_t inputs[] = {A0,A1,A2,A3};
+#define POINTONE_SECOND 100
+#define TEN_SECONDS 10000
+#define THIRTY_SECONDS 30000
+
+struct sensor_t* head = NULL;
 
 void setup(void) {
-  Serial.begin(9600);
   // connect AREF to 3.3V and use that as VCC, less noisy!
   analogReference(EXTERNAL);
 
@@ -17,21 +17,12 @@ void setup(void) {
 
   display_init();
 
-  sensors[0].name = "Mr Snake        ";
-  sensors[1].name = "Mr and Mrs Gecko";
-  sensors[2].name = "Phyllis";
-  sensors[3].name = "Room";
+  struct sensor_t* s3 = new sensor_t( "Jessica", A2, NULL );
+  struct sensor_t* s2 = new sensor_t( "Mr and Mrs Gecko", A1, s3 );
+  head = new sensor_t( "Mr Snake", A0, s2 );
 }
 
 volatile uint8_t press = 0;
-unsigned int state = OFF_STATE;
-unsigned long button_ticks = 0;
-unsigned long display_ticks = 0;
-
-unsigned long sensor_ticks = 0;
-#define POINTONE_SECOND 100
-#define TEN_SECONDS 10000
-#define THIRTY_SECONDS 30000
 
 void button_press() {
   static unsigned long last_interrupt_time = 0;
@@ -44,13 +35,18 @@ void button_press() {
 
 void loop (void) {
   unsigned long m = millis();
+  static unsigned long button_ticks = 0;
+  static unsigned long display_ticks = 0;
+  static unsigned long sensor_ticks = 0;
+  static struct sensor_t* current = NULL;
 
   // read temps update sensors every 10 seconds
   if (m-sensor_ticks > long(TEN_SECONDS)) {
-    for (int i=0; i<NUMSENSORS; i++) {
-      sensors[i].t = resistance_to_celcius(read_therm(inputs[i],5));
-      sensors[i].h = check_temp(sensors[i].t);
-      sensors[i].alarm = is_alarm(&sensors[i]);
+    struct sensor_t* c = head;
+    while (c != NULL) {
+      c->update(resistance_to_celcius(read_therm(c->input,5)));
+
+      c = c->next;
     }
 
     sensor_ticks = m;
@@ -58,32 +54,39 @@ void loop (void) {
 
   // if the display has been on for 10 seconds since the
   // last button, turn it off
-  if (state < OFF_STATE && m-button_ticks > long(TEN_SECONDS)) {
-    state = OFF_STATE;
+  if (current != NULL && m-button_ticks > long(TEN_SECONDS)) {
+    current = NULL;
     button_ticks = 0;
   }
 
   // if off, but alarms, shift to the busted one
-  if (state == OFF_STATE) {
-    for (int i=0; i<NUMSENSORS; i++) {
-      if (sensors[i].alarm == 1) {
-        state = i;
+  if (current == NULL) {
+    struct sensor_t* c = head;
+    while (c) {
+      if (c->alarm == 1) {
+        current = c;
         break;
       }
+      c = c->next;
     }
   }
 
   // check for button presses every 20ms
   if(m-button_ticks > long(20) && press > 0 ) {
-    state = (state+1)%(NUMSENSORS+1);
+    if (current == NULL) {
+      current = head;
+    } else {
+      current = current->next == NULL ? head : current->next;
+    }
     press = 0;
     button_ticks = m;
   }
 
   // update display 10 times a second
   if (m-display_ticks > long(POINTONE_SECOND)) {
-    display_update();
+    display_update(current);
     display_ticks = m;
   }
 
 }
+

@@ -36,16 +36,27 @@ void display_init () {
   display.display();
 }
 
-void display_update() {
-  if (state == OFF_STATE) {
+void display_update(struct sensor_t* current) {
+  if (current == NULL) {
     display_off();
   } else {
-    sensor s = sensors[state];
-    display_sensor(&s);
+    display_sensor(current);
   }
 }
 
-void display_sensor (sensor* s) {
+void debug(char* s, struct sensor_t* c) {
+  display.ssd1306_command(SSD1306_DISPLAYON);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.print(s);
+  if (c != NULL) {
+    display.print(c->t);
+  }
+  display.display();
+}
+
+void display_sensor (struct sensor_t* s) {
   display.ssd1306_command(SSD1306_DISPLAYON);
   display.clearDisplay();
   display.setTextSize(1);
@@ -58,17 +69,22 @@ void display_sensor (sensor* s) {
     display.print(" d/c");
     led_on(HOT);
   } else {
-    display.print(s->t);display.print("c");
+    display.print(s->t);
+    display.print("c");
     led_on(s->h);
   }
 
     // this bit should get split out
   display.setTextSize(1);
 
-  for (int i=0; i<NUMSENSORS; i++) {
+  struct sensor_t* c = head;
+  int i = 0;
+  while (c != NULL) {
     display.setCursor(110,i*8);
-    display.print( (sensors[i].plugged_in && !sensors[i].alarm) ? "+" : "x" );
-    display.print( s->name == sensors[i].name ? "<-" : " " );
+    display.print( (c->plugged_in && !c->alarm) ? "+" : "x" );
+    display.print( s->name == c->name ? "<-" : " " );
+    c = c->next;
+    i++;
   }
 
   display.display();
