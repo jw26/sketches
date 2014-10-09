@@ -3,25 +3,23 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-
-static const unsigned char PROGMEM img_bmp[] = {
-};
-
-#define BLUE 4
-#define GREEN 7
-#define RED 8
+#define BLUE 3
+#define GREEN 11
+#define RED 10
 
 // If using software SPI (the default case):
 #define OLED_MOSI   9
-#define OLED_CLK   10
-#define OLED_DC    11
-#define OLED_CS    12
-#define OLED_RESET 13
+#define OLED_CLK    8
+#define OLED_DC     7
+#define OLED_CS     5
+#define OLED_RESET  6
 Adafruit_SSD1306 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
 
 #if (SSD1306_LCDHEIGHT != 32)
 #error("Height incorrect, please fix Adafruit_SSD1306.h!");
 #endif
+
+char name_buffer[20];
 
 void display_init () {
   pinMode(BLUE,OUTPUT);
@@ -32,11 +30,12 @@ void display_init () {
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0,0);
-  display.print("oh hai");
+  display.print("hello");
   display.display();
+  led_cycle();
 }
 
-void display_update(struct sensor_t* current) {
+void display_update(Sensor* current) {
   if (current == NULL) {
     display_off();
   } else {
@@ -44,7 +43,7 @@ void display_update(struct sensor_t* current) {
   }
 }
 
-void debug(char* s, struct sensor_t* c) {
+void debug(char* s, Sensor* c) {
   display.ssd1306_command(SSD1306_DISPLAYON);
   display.clearDisplay();
   display.setTextSize(1);
@@ -56,13 +55,13 @@ void debug(char* s, struct sensor_t* c) {
   display.display();
 }
 
-void display_sensor (struct sensor_t* s) {
+void display_sensor (Sensor* s) {
   display.ssd1306_command(SSD1306_DISPLAYON);
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0,0);
-  display.print(s->name);display.println("");display.println("");
+  display.print(s->display_name());display.println("");display.println("");
   display.setTextSize(2);
 
   if (s->plugged_in == 0) {
@@ -77,7 +76,7 @@ void display_sensor (struct sensor_t* s) {
     // this bit should get split out
   display.setTextSize(1);
 
-  struct sensor_t* c = head;
+  Sensor* c = head;
   int i = 0;
   while (c != NULL) {
     display.setCursor(110,i*8);
@@ -100,7 +99,7 @@ void led_off() {
   digitalWrite(GREEN,LOW);
   digitalWrite(RED,LOW);
 }
-void led_on(How_hot hot) {
+void led_on(Heat hot) {
   switch (hot) {
     case COLD:
       digitalWrite(BLUE,HIGH);
@@ -132,4 +131,36 @@ void led_on(How_hot hot) {
       digitalWrite(GREEN,LOW);
       digitalWrite(RED,LOW);
   }
+}
+
+// borrowed from https://gist.github.com/jamesotron/766994
+void led_cycle() {
+  unsigned int rgbColour[3];
+
+  led_setRGB(0,0,0);
+
+  // Start off with red.
+  rgbColour[0] = 255;
+  rgbColour[1] = 0;
+  rgbColour[2] = 0;
+
+  // Choose the colours to increment and decrement.
+  for (int decColour = 0; decColour < 3; decColour += 1) {
+    int incColour = decColour == 2 ? 0 : decColour + 1;
+
+    // cross-fade the two colours.
+    for(int i = 0; i < 255; i += 1) {
+      rgbColour[decColour] -= 1;
+      rgbColour[incColour] += 1;
+
+      led_setRGB(rgbColour[0], rgbColour[1], rgbColour[2]);
+      delay(10);
+    }
+  }
+}
+
+void led_setRGB(unsigned int red, unsigned int green, unsigned int blue) {
+  analogWrite(BLUE, blue);
+  analogWrite(GREEN, green);
+  analogWrite(RED, red);
 }
