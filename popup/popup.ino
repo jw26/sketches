@@ -17,7 +17,8 @@ void setup()
   TIMSK0 |= (1<<OCIE0A);    // Turn on the compare interrupt
   TCCR0B |= (1<<CS00); // no prescaler
   TCCR0A |= (1<<WGM01);     // CTC
-  OCR0A = 95; // (0.01/((1/(9600))))-1
+  OCR0A = 95; // (0.1/((1/(9600))))-1 think this is wrong. forgot about clk/8 i think
+              // should be (0.1/(1/(9600/8)))-1 = 119.. might that explain the drift on 20ms?
 
   // knock interrupt
   DDRB &= ~(1<<PB1);
