@@ -7,6 +7,7 @@
 
 volatile int state = LOW;
 volatile uint8_t pulse;
+volatile uint8_t moving;
 
 void setup()
 {
@@ -17,7 +18,7 @@ void setup()
   TIMSK0 |= (1<<OCIE0A);    // Turn on the compare interrupt
   TCCR0B |= (1<<CS00); // no prescaler
   TCCR0A |= (1<<WGM01);     // CTC
-  OCR0A = 95; // (0.1/((1/(9600))))-1 think this is wrong. forgot about clk/8 i think
+  OCR0A = 119;//95; // (0.1/((1/(9600))))-1 think this is wrong. forgot about clk/8 i think
               // should be (0.1/(1/(9600/8)))-1 = 119.. might that explain the drift on 20ms?
 
   // knock interrupt
@@ -29,8 +30,8 @@ void setup()
   sei();
 
   DDRB |= (1<<PB3);
-  pulse = 3;
-  _delay_ms(150);
+  pulse = 1;
+  _delay_ms(250);
   DDRB &= ~(1<<PB3);
 
   DDRB |= (1<<PB4); // led on 4
@@ -41,42 +42,32 @@ void setup()
 }
 
 void loop() {
-  if (state == HIGH) {
+  _delay_ms(2000);
+  //if (state == HIGH) {
     PORTB |= (1<<PB4); // lights on
     PORTB |= (1<<PB0); // lights on
     _delay_ms(500);
 
     // 2 stage on the way up
-    for(int i=3; i<=10; i++) {
-      DDRB |= (1<<PB3);
-      pulse = pulse + 1;
-      _delay_ms(10);
-      DDRB &= ~(1<<PB3);
-    }
-    for(int i=10; i<=28; i++) {
-      DDRB |= (1<<PB3);
-      pulse = pulse + 1;
+    DDRB |= (1<<PB3);
+    for(pulse=3; pulse<25; pulse++) {
       _delay_ms(60);
-      DDRB &= ~(1<<PB3);
     }
-    pulse = 28;
+    DDRB &= ~(1<<PB3);
     _delay_ms(1000);
 
-
-    for(int i=3; i<=28; i++) {
-      DDRB |= (1<<PB3);
-      pulse = pulse - 1;
-      _delay_ms(10);
-      DDRB &= ~(1<<PB3);
+    DDRB |= (1<<PB3);
+    for(; pulse>2; pulse--) {
+      _delay_ms(60);
     }
-    pulse = 3;
+    DDRB &= ~(1<<PB3);
 
-    _delay_ms(500);
+    _delay_ms(1000);
     PORTB &= ~(1<<PB4);
     PORTB &= ~(1<<PB0);
 
     state = LOW;
-  }
+  //}
 }
 
 ISR(INT0_vect) {
@@ -89,7 +80,7 @@ ISR(TIM0_COMPA_vect) {
   static unsigned int tick = 0;
 
   // tick is about 0.1ms
-  if (tick >= 220) { // every 20ms is 250?!?!?, must be loosing cycles somewhere
+  if (tick >= 400) { // every 20ms is 250?!?!?, must be loosing cycles somewhere
     tick = 0;
   }
 
